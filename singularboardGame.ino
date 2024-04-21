@@ -100,6 +100,7 @@ void loop() {
                     if(currminibuttonpress == LOW){ //button confirmed to be pressed and then released
                         buttoncount++;
                     }
+                    bprev = bcurr;
                 }
             }
             if(buttoncount != match){

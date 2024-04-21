@@ -75,13 +75,13 @@ void loop(){
                 //  in order to gain a point.
                 if(miniID ==  'x' || miniID == 'y' || miniID == 'z'){
                     if(miniID == 'x'){ //the photoresistor should be darkened
-                        match = 75;
+                        match = 50;
                     }
                     else if(miniID = 'y'){//the photoresistor should be left at room light level
-                        match = 150;
+                        match = 125;
                     }
                     else if(miniID = 'z'){//the photo resistor shoud be brightened
-                        match = 225;
+                        match = 250;
                     }
                     else{
                         killgame();
@@ -117,18 +117,20 @@ bool shouldabort(){
 
 bool interpret(){
     //interpret the io message that control arduino sent
+    memset(receive, 0x00, 8);
     Serial.readBytesUntil('!', receive, 8);
     if(receive[0] == '?'){
         miniID = tolower(receive[1]);
         char* beg = receive;
         beg++; //go past the ?
         beg++; //go past the minigame identifier and no beg should point to the beginning of the number
-        char* tok = strstr("!", beg); //find the end of the serial string
-        int numlength = (int)(tok - beg);
+        char* tok = strtok("!", beg); //find the end of the serial string
+        int numlength = (int)((long)&beg - (long)&tok);
         if(numlength > 1){//there is atleast one value between minigame identifier and !
             char matches[numlength +1];
+            memset(matches, 0x00, numlength+1);
             strncpy(matches, beg, numlength);
-            matches[numlength + 1] = '\0';
+            matches[numlength] = '\0';
             match = atoi(matches);
         }
         return true;
@@ -154,6 +156,47 @@ void killgame(){
 
 void buttongame(){
     //button pressing minigame
+    curr = millis();
+    bcurr = millis();
+    buttoncount = 0;
+    prev = curr;
+    bprev = bcurr;
+    buttonmatch = match;
+    while(curr - prev < wincon){ //in order to win the minigame the user must match number based on what their count is
+        if(Serial.available()){
+            activated = interpret();//check to see if any request came in
+            isabort = shouldabort();//check to see if the game should be aborted
+            if(activated && isabort){
+                killgame();
+                return;
+            }
+        }
+        curr = millis();
+        bcurr = millis();
+        currminibuttonpress = digitalRead(minibutton);
+        if(currminibuttonpress != prevminibuttonpress){ 
+            if(bcurr - bprev >= buttonTO){
+                prevminibuttonpress = currminibuttonpress;
+                if(currminibuttonpress == LOW){ //button confirmed to be pressed and then released
+                    buttoncount++;
+                }
+                bprev = bcurr;
+            }
+        }
+        if(buttoncount != match){
+            digitalWrite(LED_BUILTIN, LOW);
+            prev = curr;
+        }
+        else{
+            digitalWrite(LED_BUILTIN, HIGH);
+        }
+
+        if(buttoncount > match){
+            buttoncount = 0;
+        }
+    }
+    digitalWrite(LED_BUILTIN, LOW);
+    wongame();
 }
 
 void lightgame(){
@@ -162,11 +205,13 @@ void lightgame(){
     prev = curr;
     lightLevel = match;
     while(curr - prev < wincon){ //in order to win the minigame the user must match the light level for the desired time
-        activated = interpret();//check to see if any request came in
-        isabort = shouldabort();//check to see if the game should be aborted
-        if(activated && isabort){
-            killgame();
-            return;
+        if(Serial.available()){
+            activated = interpret();//check to see if any request came in
+            isabort = shouldabort();//check to see if the game should be aborted
+            if(activated && isabort){
+                killgame();
+                return;
+            }
         }
         curr = millis();
         lightRead = analogRead(photo);
@@ -184,6 +229,149 @@ void lightgame(){
 
 void binarygame(){
     //led+potentiometer binary counting minigame
+    curr = millis();
+    prev = curr;
+    binarymatch = match;
+    while(curr - prev < wincon){
+        if(Serial.available()){
+            activated = interpret();//check to see if any request came in
+            isabort = shouldabort();//check to see if the game should be aborted
+            if(activated && isabort){
+                killgame();
+                return;
+            }
+        }
+        curr = millis();
+        potentioRead = analogRead(potentio);
+            //the range of values from a potentiometer is [0, 1024] so to split that up between 4 LEDs represinting binary bit, then that 
+            //  range must be seperated into 16 states so each ranch value 64
+        if(potentioRead < 64){ //potentio is between 0 to 63 so represent that as 0 in binary
+            digitalWrite(bit1, LOW);
+            digitalWrite(bit2, LOW);
+            digitalWrite(bit4, LOW);
+            digitalWrite(bit8, LOW);
+            potentiocount = 0;
+        }
+        else if(potentioRead >= 64 && potentioRead < 128){//potentio is between 64 to 128 so represent that as 1 in binary
+            digitalWrite(bit1, HIGH);
+            digitalWrite(bit2, LOW);
+            digitalWrite(bit4, LOW);
+            digitalWrite(bit8, LOW);
+            potentiocount = 1;
+        }
+        else if(potentioRead >= 128 && potentioRead < 192){//potentio is between 128 to 192 so represent that as 2 in binary
+            digitalWrite(bit1, LOW);
+            digitalWrite(bit2, HIGH);
+            digitalWrite(bit4, LOW);
+            digitalWrite(bit8, LOW);
+            potentiocount = 2;
+        }
+        else if(potentioRead >= 192 && potentioRead < 256){//potentio is between 192 to 256 so represent that as 3 in binary
+            digitalWrite(bit1, HIGH);
+            digitalWrite(bit2, HIGH);
+            digitalWrite(bit4, LOW);
+            digitalWrite(bit8, LOW);
+            potentiocount = 3;
+        }
+        else if(potentioRead >= 256 && potentioRead < 320){//potentio is between 256 to 320 so represent that as 4 in binary
+            digitalWrite(bit1, LOW);
+            digitalWrite(bit2, LOW);
+            digitalWrite(bit4, HIGH);
+            digitalWrite(bit8, LOW);
+            potentiocount = 4;
+        }
+        else if(potentioRead >= 320 && potentioRead < 384){//potentio is between 320 to 384 so represent that as 5 in binary
+            digitalWrite(bit1, HIGH);
+            digitalWrite(bit2, LOW);
+            digitalWrite(bit4, HIGH);
+            digitalWrite(bit8, LOW);
+            potentiocount = 5;
+        }
+        else if(potentioRead >= 384 && potentioRead < 448){//potentio is between 384 to 448 so represent that as 6 in binary
+            digitalWrite(bit1, LOW);
+            digitalWrite(bit2, HIGH);
+            digitalWrite(bit4, HIGH);
+            digitalWrite(bit8, LOW);
+            potentiocount = 6;
+        }
+        else if(potentioRead >= 448 && potentioRead < 512){//potentio is between 448 to 512 so represent that as 7 in binary
+            digitalWrite(bit1, HIGH);
+            digitalWrite(bit2, HIGH);
+            digitalWrite(bit4, HIGH);
+            digitalWrite(bit8, LOW);
+            potentiocount = 7;
+        }
+        else if(potentioRead >= 512 && potentioRead < 576){//potentio is between 512 to 576 so represent that as 8 in binary
+            digitalWrite(bit1, LOW);
+            digitalWrite(bit2, LOW);
+            digitalWrite(bit4, LOW);
+            digitalWrite(bit8, HIGH);
+            potentiocount = 8;
+        }
+        else if(potentioRead >= 576 && potentioRead < 640){//potentio is between 576 to 640 so represent that as 9 in binary
+            digitalWrite(bit1, HIGH);
+            digitalWrite(bit2, LOW);
+            digitalWrite(bit4, LOW);
+            digitalWrite(bit8, HIGH);
+            potentiocount = 9;
+        }
+        else if(potentioRead >= 640 && potentioRead < 704){//potentio is between 640 to 704 so represent that as 10 in binary
+            digitalWrite(bit1, LOW);
+            digitalWrite(bit2, HIGH);
+            digitalWrite(bit4, LOW);
+            digitalWrite(bit8, HIGH);
+            potentiocount = 10;
+        }
+        else if(potentioRead >= 704 && potentioRead < 768){//potentio is between 704 to 768 so represent that as 11 in binary
+            digitalWrite(bit1, HIGH);
+            digitalWrite(bit2, HIGH);
+            digitalWrite(bit4, LOW);
+            digitalWrite(bit8, HIGH);
+            potentiocount = 11;
+        }
+        else if(potentioRead >= 768 && potentioRead < 832){//potentio is between 768 to 834 so represent that as 12 in binary
+            digitalWrite(bit1, LOW);
+            digitalWrite(bit2, LOW);
+            digitalWrite(bit4, HIGH);
+            digitalWrite(bit8, HIGH);
+            potentiocount = 12;
+        }
+        else if(potentioRead >= 832 && potentioRead < 896){//potentio is between 832 to 896 so represent that as 13 in binary
+            digitalWrite(bit1, HIGH);
+            digitalWrite(bit2, LOW);
+            digitalWrite(bit4, HIGH);
+            digitalWrite(bit8, HIGH);
+            potentiocount = 13;
+        }
+        else if(potentioRead >= 896 && potentioRead < 960){//potentio is between 896 to 960 so represent that as 14 in binary
+            digitalWrite(bit1, LOW);
+            digitalWrite(bit2, HIGH);
+            digitalWrite(bit4, HIGH);
+            digitalWrite(bit8, HIGH);
+            potentiocount = 14;
+        }
+        else if(potentioRead >= 960){//potentio is between 960 to 1024 so represent that as 15 in binary
+            digitalWrite(bit1, HIGH);
+            digitalWrite(bit2, HIGH);
+            digitalWrite(bit4, HIGH);
+            digitalWrite(bit8, HIGH);
+            potentiocount = 15;
+        }
+        else{
+            //something went wrong
+            killgame();
+            return;
+        }
+
+        if(potentiocount != binarymatch){
+            digitalWrite(LED_BUILTIN, LOW);
+            prev = curr;
+        }
+        else{
+            digitalWrite(LED_BUILTIN, HIGH);
+        }
+    }
+    wongame();
 }
 
 void wongame(){
