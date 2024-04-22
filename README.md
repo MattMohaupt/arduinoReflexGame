@@ -1,0 +1,1 @@
+Run singular board if only have one arduino board and it will just do everything locally and use Serial.println to print to the system console. Run rewrite code if have two arduino boards, one control arduino and one game arduino.
