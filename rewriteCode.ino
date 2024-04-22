@@ -118,7 +118,9 @@ bool shouldabort(){
 bool interpret(){
     //interpret the io message that control arduino sent
     memset(receive, 0x00, 8);
-    Serial.readBytesUntil('!', receive, 8);
+    Serial.readBytesUntil('.', receive, 8);
+    //Serial.print("recieved = ");
+    //Serial.println(receive);
     if(receive[0] == '?'){
         miniID = tolower(receive[1]);
         char* beg = receive;
@@ -380,6 +382,7 @@ void wongame(){
     potentioRead = analogRead(potentio);
     potentioRead = potentioRead%10;
     snprintf(send, 8, "?W%d!", potentioRead);
+    //Serial.print("sending = ");
     Serial.write(send);
     killgame();
 }
